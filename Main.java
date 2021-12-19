@@ -18,9 +18,19 @@ class Main {
         }
 
         Network network = new Network(segments);
-        List<List<String>> allPaths = network.getAllPaths();
 
-        System.out.println("Number of paths: " + allPaths.size());
+        List<List<String>> result = new LinkedList<List<String>>();
+
+        for (String smallCaveToVisitTwice: network.allSmallIntermediate()) {
+            result.addAll(network.getAllPaths(smallCaveToVisitTwice));
+        }
+
+        List<String> uniquePaths = result.stream()
+            .map(p -> String.join(",", p))
+            .distinct()
+            .collect(Collectors.toList());
+
+        System.out.println("Number of paths: " + uniquePaths.size());
     }
 }
 
@@ -34,13 +44,9 @@ class Network {
             String from = segment.get(0);
             String to = segment.get(1);
 
-            upsertSegment(from, to);
+            upsertOneSide(from, to);
+            upsertOneSide(to, from);
         }
-    }
-
-    void upsertSegment(String from, String to) {
-        upsertOneSide(from, to);
-        upsertOneSide(to, from);
     }
 
     void upsertOneSide(String from, String to) {
@@ -53,15 +59,20 @@ class Network {
         }
     }
 
-    public List<String> getPossibilities(List<String> pathSoFar) {
+    public List<String> getPossibilities(List<String> pathSoFar, String smallCaveToVisitTwice) {
         String last = getLast(pathSoFar);
 
         List<String> all = map.get(last);
 
-        return all.stream().filter(next -> isTraversable(next, pathSoFar)).collect(Collectors.toList());
+        return all.stream()
+            .filter(next -> isTraversable(next, pathSoFar, smallCaveToVisitTwice))
+            .collect(Collectors.toList());
     }
 
-    boolean isTraversable(String next, List<String> pathSoFar) {
+    boolean isTraversable(String next, List<String> pathSoFar, String smallCaveToVisitTwice) {
+        if (next.equals(smallCaveToVisitTwice))
+            return Collections.frequency(pathSoFar, next) <= 1;
+        
         boolean secondSmallVisit = (isSmall(next) && pathSoFar.contains(next));
 
         return !secondSmallVisit;
@@ -71,8 +82,8 @@ class Network {
         return cave.toLowerCase().equals(cave);
     }
 
-    List<List<String>> getContinuations(List<String> pathSoFar) {
-        List<String> possibilities = getPossibilities(pathSoFar);
+    List<List<String>> getContinuations(List<String> pathSoFar, String smallCaveToVisitTwice) {
+        List<String> possibilities = getPossibilities(pathSoFar, smallCaveToVisitTwice);
 
         List<List<String>> continuations = new LinkedList<List<String>>();
 
@@ -86,17 +97,27 @@ class Network {
         return continuations;
     }
 
-    public List<List<String>> getAllPaths() {
+    public List<String> allSmallIntermediate() {
+        return map.keySet().stream()
+            .filter(c -> isSmallNotStartOrEnd(c))
+            .collect(Collectors.toList());
+    }
+
+    boolean isSmallNotStartOrEnd(String cave) {
+        return !cave.equals("start") && !cave.equals("end") && isSmall(cave);
+    }
+
+    public List<List<String>> getAllPaths(String smallCaveToVisitTwice) {
         List<String> start = new LinkedList<String>();
         start.add("start");
 
-        return getAllPathsFrom(start);
+        return getAllPathsFrom(start, smallCaveToVisitTwice);
     }
 
-    public List<List<String>> getAllPathsFrom(List<String> pathSoFar) {
+    public List<List<String>> getAllPathsFrom(List<String> pathSoFar, String smallCaveToVisitTwice) {
         List<List<String>> allPaths = new LinkedList<List<String>>();
 
-        List<List<String>> continuations = getContinuations(pathSoFar);
+        List<List<String>> continuations = getContinuations(pathSoFar, smallCaveToVisitTwice);
 
         for (List<String> continuation: continuations) {
             String last = getLast(continuation);
@@ -104,7 +125,7 @@ class Network {
             if (last.equals("end")) {
                 allPaths.add(continuation);
             } else {
-                allPaths.addAll(getAllPathsFrom(continuation));
+                allPaths.addAll(getAllPathsFrom(continuation, smallCaveToVisitTwice));
             }
         }    
 
